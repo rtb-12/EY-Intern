@@ -11,13 +11,11 @@ conn = psycopg2.connect(
     password=os.getenv('DB_PWD')
 )
 
-# Open a cursor to perform database operations
 cur = conn.cursor()
 
-# Execute commands: create users table
-cur.execute('DROP TABLE IF EXISTS users;')
+# Users table
 cur.execute('''
-    CREATE TABLE users (
+    CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
         username VARCHAR(50) NOT NULL UNIQUE,
         email VARCHAR(100) NOT NULL UNIQUE,
@@ -29,10 +27,9 @@ cur.execute('''
     );
 ''')
 
-# Create user_sessions table for managing login sessions
-cur.execute('DROP TABLE IF EXISTS user_sessions;')
+# User sessions table
 cur.execute('''
-    CREATE TABLE user_sessions (
+    CREATE TABLE IF NOT EXISTS user_sessions (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id),
         session_token VARCHAR(255) NOT NULL,
@@ -42,10 +39,22 @@ cur.execute('''
     );
 ''')
 
-# Create API keys table
-cur.execute('DROP TABLE IF EXISTS api_keys;')
+# Chatbot users table
 cur.execute('''
-    CREATE TABLE api_keys (
+    CREATE TABLE IF NOT EXISTS chatbot_users (
+        id SERIAL PRIMARY KEY,
+        username VARCHAR(50) NOT NULL UNIQUE,
+        email VARCHAR(100) NOT NULL UNIQUE,
+        password_hash VARCHAR(255) NOT NULL,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_login TIMESTAMP
+    );
+''')
+
+# API keys table
+cur.execute('''
+    CREATE TABLE IF NOT EXISTS api_keys (
         id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL,
         api_key_name VARCHAR(50) NOT NULL,
@@ -59,21 +68,30 @@ cur.execute('''
     );
 ''')
 
-# Create chat messages table with JSONB array
-cur.execute('DROP TABLE IF EXISTS chat_messages;')
+# Chat messages table
 cur.execute('''
-    CREATE TABLE chat_messages (
+    CREATE TABLE IF NOT EXISTS chat_messages (
         id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL,
         conversation_id UUID DEFAULT gen_random_uuid(),
         message_data JSONB NOT NULL,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
-    CREATE INDEX idx_conversation_id ON chat_messages(conversation_id);
-    CREATE INDEX idx_message_data ON chat_messages USING GIN (message_data);
+''')
+
+# Create indices if they don't exist
+cur.execute('''
+    DO $$
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_conversation_id') THEN
+            CREATE INDEX idx_conversation_id ON chat_messages(conversation_id);
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_message_data') THEN
+            CREATE INDEX idx_message_data ON chat_messages USING GIN (message_data);
+        END IF;
+    END$$;
 ''')
 
 conn.commit()
-
 cur.close()
 conn.close()

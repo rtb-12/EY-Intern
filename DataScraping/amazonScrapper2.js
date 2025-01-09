@@ -6,7 +6,7 @@ async function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function scrapeAmazonProduct(url, email, password) {
+async function scrapeMultipleProducts(urls, email, password) {
   let browser = null;
   try {
     browser = await puppeteer.launch({
@@ -30,24 +30,78 @@ async function scrapeAmazonProduct(url, email, password) {
     );
 
     // Login Process
-    console.log("Navigating to login page...");
-    await page.goto(
-      "https://www.amazon.in/ap/signin?openid.pape.max_auth_age=0&openid.return_to=https%3A%2F%2Fwww.amazon.in%2F&openid.identity=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select&openid.assoc_handle=inflex&openid.mode=checkid_setup&openid.claimed_id=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select&openid.ns=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0"
-    );
-
-    // Login
     console.log("Logging in...");
-    await page.waitForSelector('input[name="email"]');
-    await page.type('input[name="email"]', email, { delay: 100 });
-    await page.click('input[id="continue"]');
+    await performLogin(page, email, password);
 
-    await page.waitForSelector('input[name="password"]');
-    await page.type('input[name="password"]', password, { delay: 100 });
-    await page.click('input[id="signInSubmit"]');
+    const allProductDetails = [];
+    const allReviews = [];
 
-    // Wait for login to complete
-    await page.waitForNavigation();
+    // Scrape each URL
+    for (let i = 0; i < urls.length; i++) {
+      console.log(`\nScraping product ${i + 1}/${urls.length}`);
+      console.log(`URL: ${urls[i]}`);
+      
+      try {
+        const productDetails = await scrapeAmazonProduct(page, urls[i]);
+        allProductDetails.push(productDetails);
+        if (productDetails.reviews) {
+          allReviews.push(...productDetails.reviews.map(review => ({
+            ...review,
+            productTitle: productDetails.title
+          })));
+        }
+      } catch (error) {
+        console.error(`Error scraping product ${i + 1}:`, error.message);
+      }
 
+      // Add delay between products
+      if (i < urls.length - 1) {
+        await delay(3000 + Math.random() * 2000);
+      }
+    }
+
+    // Save all product details
+    const productCsvContent = 
+      "Product Title,Price,Rating,Total Reviews\n" +
+      allProductDetails.map(product => 
+        `"${product.title.replace(/"/g, '""')}","${product.price}","${product.rating}","${product.totalRatings}"`
+      ).join("\n");
+
+    fs.writeFileSync("all_product_details.csv", productCsvContent, "utf8");
+
+    // Save all reviews
+    const reviewsCsvContent = 
+      "Product,Page,Title,Rating,Date,Review\n" +
+      allReviews.map((review, index) =>
+        `"${review.productTitle.replace(/"/g, '""')}","${Math.floor(index / 10) + 1}","${review.title.replace(/"/g, '""')}","${review.rating}","${review.date}","${review.text.replace(/"/g, '""')}"`
+      ).join("\n");
+
+    fs.writeFileSync("all_reviews.csv", reviewsCsvContent, "utf8");
+
+    return allProductDetails;
+  } finally {
+    if (browser) {
+      await browser.close();
+    }
+  }
+}
+
+async function performLogin(page, email, password) {
+  await page.goto("https://www.amazon.in/ap/signin?openid.pape.max_auth_age=0&openid.return_to=https%3A%2F%2Fwww.amazon.in%2F&openid.identity=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select&openid.assoc_handle=inflex&openid.mode=checkid_setup&openid.claimed_id=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select&openid.ns=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0");
+  
+  await page.waitForSelector('input[name="email"]');
+  await page.type('input[name="email"]', email, { delay: 100 });
+  await page.click('input[id="continue"]');
+
+  await page.waitForSelector('input[name="password"]');
+  await page.type('input[name="password"]', password, { delay: 100 });
+  await page.click('input[id="signInSubmit"]');
+
+  await page.waitForNavigation();
+}
+
+async function scrapeAmazonProduct(page, url) {
+  try {
     console.log("Navigating to product page...");
     await page.goto(url, { waitUntil: "networkidle2" });
 
@@ -230,33 +284,28 @@ async function scrapeAmazonProduct(url, email, password) {
 
       productDetails.reviews = allReviews;
 
-      const productCsvContent =
-        "Product Title,Price,Rating,Total Reviews\n" +
-        `"${productDetails.title.replace(/"/g, '""')}","${
-          productDetails.price
-        }","${productDetails.rating}","${productDetails.totalReviews}"`;
 
-      // Write product details to CSV
-      fs.writeFileSync("amazon_product_details.csv", productCsvContent, "utf8");
-      console.log("Product details saved to amazon_product_details.csv");
 
-      // Write reviews to CSV with product title
-      const reviewsCsvContent =
-        "Product,Page,Title,Rating,Date,Review\n" +
-        allReviews
-          .map(
-            (review, index) =>
-              `"${productDetails.title.replace(/"/g, '""')}","${
-                Math.floor(index / 10) + 1
-              }","${review.title.replace(/"/g, '""')}","${review.rating}","${
-                review.date
-              }","${review.text.replace(/"/g, '""')}"`
-          )
-          .join("\n");
+     const csvFileName = "amazon_product_with_reviews.csv";
 
-      fs.writeFileSync("amazon_reviews.csv", reviewsCsvContent, "utf8");
-      console.log(`Total reviews scraped: ${allReviews.length}`);
-      console.log("Reviews saved to amazon_reviews.csv");
+     // Create header if file doesn't exist
+     if (!fs.existsSync(csvFileName)) {
+       fs.writeFileSync(csvFileName, "Product Title,Price,Rating,Total Reviews,All Reviews\n", "utf8");
+     }
+     
+     const normalizeText = (text) => text.replace(/\s+/g, ' ').trim();
+
+     const productRow = 
+       `"${normalizeText(productDetails.title).replace(/"/g, '""')}",` +
+       `"${productDetails.price}",` +
+       `"${productDetails.rating}",` +
+       `"${productDetails.totalRatings}",` +
+       `"${allReviews
+           .map(review => normalizeText(review.text).replace(/"/g, '""'))
+           .join(' ||| ')}"\n`;
+     
+     fs.appendFileSync(csvFileName, productRow, "utf8");
+     console.log(`Appended product with ${allReviews.length} reviews to ${csvFileName}`);
     }
 
     return productDetails;
@@ -267,45 +316,29 @@ async function scrapeAmazonProduct(url, email, password) {
       stack: error.stack,
     });
     throw error;
-  } finally {
-    if (browser) {
-      await browser.close();
-    }
   }
 }
 
-const url =
-  "https://www.amazon.in/MSI-MP341CQ-34-Inch-Computer-Monitor/dp/B0BGM43DRW/?_encoding=UTF8&pd_rd_w=T6BEc&content-id=amzn1.sym.8d495402-cfc2-4d44-a850-d7e6b3b42c68&pf_rd_p=8d495402-cfc2-4d44-a850-d7e6b3b42c68&pf_rd_r=8CZ32CY3FDFC10HXX7SR&pd_rd_wg=1Rn3t&pd_rd_r=9d287b5e-2042-4305-b0e2-fa5c99b569cb&ref_=pd_hp_d_atf_dealz_sv";
+
+const urls = fs.readFileSync('product_urls.txt', 'utf-8')
+  .split(',')
+  .map(url => url.trim())
+  .filter(url => url && url.startsWith('https')); 
+
+console.log(`Loaded ${urls.length} URLs from product_urls.txt`);
+
 const email = process.env.AMAZON_EMAIL;
 const password = process.env.AMAZON_PASSWORD;
 
 if (!email || !password) {
-  throw new Error(
-    "Missing AMAZON_EMAIL or AMAZON_PASSWORD in environment variables"
-  );
+  throw new Error("Missing AMAZON_EMAIL or AMAZON_PASSWORD in environment variables");
 }
 
 console.log("Starting scraper...");
-scrapeAmazonProduct(url, email, password)
-  .then((details) => {
-    console.log("\nProduct Summary:");
-    console.log("Product Title:", details.title);
-    console.log("Product Price:", details.price);
-    console.log("Product Rating:", details.rating);
-    console.log("Total Ratings:", details.totalRatings);
-    console.log("\nRating Distribution:");
-    if (details.ratingDistribution) {
-      const stars = ["5_star", "4_star", "3_star", "2_star", "1_star"];
-      stars.forEach((star) => {
-        console.log(
-          `${star.replace("_", " ")}: ${
-            details.ratingDistribution[star] || "0%"
-          }`
-        );
-      });
-    }
-    console.log(`\nTotal Reviews Scraped: ${details.reviews?.length || 0}`);
+scrapeMultipleProducts(urls, email, password)
+  .then((allDetails) => {
+    console.log(`\nScraping completed for ${allDetails.length} products`);
   })
   .catch((error) => {
-    console.error("Failed to scrape product details:", error);
+    console.error("Failed to scrape products:", error);
   });

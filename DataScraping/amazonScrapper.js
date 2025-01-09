@@ -1,181 +1,184 @@
-const puppeteer = require('puppeteer');
-const fs = require('fs');
+const puppeteer = require("puppeteer");
+const fs = require("fs");
+require("dotenv").config();
 
 async function delay(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function scrapeAmazonProduct(url, email, password) {
-    let browser = null;
+async function scrapeAmazonProduct(
+  email,
+  password,
+  productType,
+  brandName
+) {
+  let browser = null;
+  try {
+    browser = await puppeteer.launch({
+      headless: false,
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-accelerated-2d-canvas",
+        "--disable-gpu",
+      ],
+    });
+
+    const page = await browser.newPage();
+    await page.setDefaultNavigationTimeout(60000);
+    await page.setDefaultTimeout(60000);
+
+    // Set user agent
+    await page.setUserAgent(
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    );
+
+    // Login Process
+    console.log("Navigating to login page...");
+    await page.goto(
+      "https://www.amazon.in/ap/signin?openid.pape.max_auth_age=0&openid.return_to=https%3A%2F%2Fwww.amazon.in%2F&openid.identity=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select&openid.assoc_handle=inflex&openid.mode=checkid_setup&openid.claimed_id=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select&openid.ns=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0"
+    );
+
+    // Login
+    console.log("Logging in...");
+    await page.waitForSelector('input[name="email"]');
+    await page.type('input[name="email"]', email, { delay: 100 });
+    await page.click('input[id="continue"]');
+
+    await page.waitForSelector('input[name="password"]');
+    await page.type('input[name="password"]', password, { delay: 100 });
+    await page.click('input[id="signInSubmit"]');
+
+    // Wait for login to complete
+    await page.waitForNavigation();
+
+    // Navigate to the homepage
+    console.log("Navigating to the homepage...");
+    await page.goto("https://www.amazon.in/");
+
+    // Click on the search bar and enter the product type
+    console.log("Searching for product type...", productType);
+    await page.waitForSelector('input[id="twotabsearchtextbox"]');
+    await page.click('input[id="twotabsearchtextbox"]');
+    await page.type('input[id="twotabsearchtextbox"]', productType, {
+      delay: 100,
+    });
+    await page.keyboard.press("Enter");
+
+    // Wait for the search results to load
+    await page.waitForNavigation();
+
+    // Wait for brand refinements to load
+    console.log("Waiting for brand filters...");
     try {
-        browser = await puppeteer.launch({
-            headless: false,
-            args: [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-accelerated-2d-canvas',
-                '--disable-gpu'
-            ]
-        });
-
-        const page = await browser.newPage();
-        await page.setDefaultNavigationTimeout(60000);
-        await page.setDefaultTimeout(60000);
-
-        // Set user agent
-        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-
-        // Login Process
-        console.log('Navigating to login page...');
-        await page.goto('https://www.amazon.in/ap/signin?openid.pape.max_auth_age=0&openid.return_to=https%3A%2F%2Fwww.amazon.in%2F&openid.identity=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select&openid.assoc_handle=inflex&openid.mode=checkid_setup&openid.claimed_id=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select&openid.ns=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0');
-
-        console.log('Logging in...');
-        await page.waitForSelector('input[name="email"]');
-        await page.type('input[name="email"]', email, { delay: 100 });
-        await page.click('input[id="continue"]');
-        
-        await page.waitForSelector('input[name="password"]');
-        await page.type('input[name="password"]', password, { delay: 100 });
-        await page.click('input[id="signInSubmit"]');
-
-        await page.waitForNavigation();
-
-        // Navigate to product page and get reviews URL
-        console.log('Navigating to product page...');
-        await page.goto(url, { waitUntil: 'networkidle2' });
-        
-        const reviewsUrl = await page.evaluate(() => {
-            const reviewsLink = document.querySelector('[data-hook="see-all-reviews-link-foot"]');
-            return reviewsLink ? reviewsLink.href : null;
-        });
-
-        if (!reviewsUrl) {
-            throw new Error('Could not find reviews URL');
-        }
-
-        // Navigate to reviews page
-        console.log('Navigating to reviews page...');
-        await page.goto(reviewsUrl, { waitUntil: 'networkidle2' });
-        
-        const allReviews = [];
-        let pageNumber = 1;
-        
-        while (true) {
-          console.log(`Scraping page ${pageNumber}...`);
-
-          // Wait for reviews to load
-          await page.waitForSelector('[data-hook="review-body"]');
-
-          // Extract reviews
-          const newReviews = await page.evaluate(() => {
-            const reviews = [];
-            const reviewElements = document.querySelectorAll(
-              '[data-hook="review-body"]'
-            );
-
-            reviewElements.forEach((element) => {
-              const reviewContainer = element.closest(".review");
-              if (reviewContainer) {
-                reviews.push({
-                  text: element.textContent.trim(),
-                  date:
-                    reviewContainer
-                      .querySelector('[data-hook="review-date"]')
-                      ?.textContent.trim() || "Date not found",
-                  rating:
-                    reviewContainer
-                      .querySelector('[data-hook="review-star-rating"]')
-                      ?.textContent.trim() || "Rating not found",
-                  title:
-                    reviewContainer
-                      .querySelector('[data-hook="review-title"]')
-                      ?.textContent.trim() || "Title not found",
-                });
-              }
-            });
-
-            return reviews;
-          });
-
-          allReviews.push(...newReviews);
-          console.log(
-            `Found ${newReviews.length} reviews on page ${pageNumber}`
-          );
-
-          // Check for next page
-          const isLastPage = await page.evaluate(() => {
-            const nextButton = document.querySelector(
-              ".a-pagination li.a-last"
-            );
-            return nextButton && nextButton.classList.contains("a-disabled");
-          });
-
-          if (isLastPage) {
-            console.log("Reached last page");
-            break;
-          }
-
-          // Navigate to next page
-          try {
-            const nextPageButton = await page.$(".a-pagination li.a-last a");
-            if (!nextPageButton) {
-              console.log("No next page button found");
-              break;
-            }
-
-            await nextPageButton.click();
-            await page.waitForNavigation({ waitUntil: "networkidle2" });
-
-            // Add delay between pages using custom delay function
-            await delay(2000);
-            pageNumber++;
-          } catch (error) {
-            console.error("Error navigating to next page:", error.message);
-            break;
-          }
-        }
-
-        // Save reviews to CSV
-        const csvContent = 'Page Number,Title,Rating,Date,Review\n' + 
-            allReviews.map((review, index) => {
-                const pageNum = Math.floor(index / 10) + 1;
-                return `${pageNum},"${review.title.replace(/"/g, '""')}","${review.rating}","${review.date}","${review.text.replace(/"/g, '""')}"`;
-            }).join('\n');
-
-        fs.writeFileSync('amazon_reviews.csv', csvContent, 'utf8');
-        console.log(`Successfully scraped ${allReviews.length} reviews across ${pageNumber} pages`);
-        console.log('Reviews saved to amazon_reviews.csv');
-
-        return allReviews;
-
+      await page.waitForSelector("#brandsRefinements", {
+        timeout: 5000,
+        visible: true,
+      });
+      console.log("Brand filters loaded successfully");
     } catch (error) {
-        console.error('Error:', error);
-        throw error;
-    } finally {
-        if (browser) {
-            await browser.close();
-        }
+      console.error("Brand filters not found:", error);
     }
+
+    // Apply Filter for the Brand
+    console.log("Expanding brand filters...");
+    try {
+      await page.waitForSelector("#brandsRefinements .a-expander-prompt", {
+        timeout: 5000,
+        visible: true,
+      });
+
+      await page.$eval("#brandsRefinements .a-expander-prompt", (element) =>
+        element.click()
+      );
+      console.log("Brand filters expanded successfully");
+
+      await new Promise(resolve => setTimeout(resolve, 500));
+    } catch (error) {
+      console.error("Failed to expand brand filters:", error);
+    }
+
+
+    console.log("Applying brand filter...", brandName);
+    try {
+      await page.waitForSelector('.a-link-normal.s-navigation-item', { 
+        visible: true,
+        timeout: 5000 
+      });
+      
+      const brandFound = await page.evaluate((brandName) => {
+        const brandElements = document.querySelectorAll('.s-navigation-item');
+        for (const element of brandElements) {
+          if (element.textContent.trim().toLowerCase() === brandName.toLowerCase()) {
+            const checkbox = element.querySelector('input[type="checkbox"]');
+            if (checkbox) {
+              checkbox.click();
+              return true;
+            }
+          }
+        }
+        return false;
+      }, brandName);
+    
+      if (brandFound) {
+        console.log(`Successfully selected brand: ${brandName}`);
+        // Wait for page to update after brand selection
+        await page.waitForNavigation({ waitUntil: 'networkidle0' });
+      } else {
+        console.log(`Brand "${brandName}" not found in filters`);
+      }
+    } catch (error) {
+      console.error(`Failed to select brand ${brandName}:`, error);
+    }
+
+    console.log("Extracting product links...");
+try {
+  await page.waitForSelector('.s-title-instructions-style', { 
+    timeout: 5000,
+    visible: true 
+  });
+
+  const products = await page.evaluate(() => {
+    const productElements = document.querySelectorAll('.s-title-instructions-style');
+    return Array.from(productElements).map(element => {
+      const linkElement = element.querySelector('a');
+      return {
+        title: linkElement?.querySelector('span')?.textContent.trim() || 'No title',
+        url: linkElement ? 'https://www.amazon.in' + linkElement.getAttribute('href') : null
+      };
+    });
+  });
+
+  console.log(`Found ${products.length} products:`);
+  products.forEach((product, index) => {
+    console.log(`\n${index + 1}. ${product.title}\nURL: ${product.url}`);
+  });
+
+  const urls = products
+  .map(product => product.url)
+  .filter(url => url) // Remove null/undefined URLs
+  .join(',\n');
+
+fs.writeFileSync('product_urls.txt', urls, 'utf-8');
+console.log(`Saved ${products.length} URLs to product_urls.txt`);
+
+} catch (error) {
+  console.error("Failed to extract product links:", error);
+}
+  } catch (error) {
+    console.log(error);
+  }
 }
 
-// Usage
-const url = 'https://www.amazon.in/MSI-G274QPF-E2-Gaming-Monitor/dp/B0CR9ZS4ZK';
-require('dotenv').config();
-
-// ...existing code...
 
 const email = process.env.AMAZON_EMAIL;
 const password = process.env.AMAZON_PASSWORD;
-
+const productType = "laptop";
+const brandName = "Apple";
 if (!email || !password) {
-  throw new Error('Missing AMAZON_EMAIL or AMAZON_PASSWORD in environment variables');
+  throw new Error(
+    "Missing AMAZON_EMAIL or AMAZON_PASSWORD in environment variables"
+  );
 }
-
-scrapeAmazonProduct(url, email, password)
-    .then(reviews => {
-        console.log(`Total reviews scraped: ${reviews.length}`);
-    })
-    .catch(error => {
-        console.error('Scraping failed:', error);
-    });
+scrapeAmazonProduct(email, password, productType, brandName);

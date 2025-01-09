@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "./context/themeContext";
 import { AuthProvider } from "./context/AuthContext";
+import { ChatAuthProvider } from "./context/ChatAuthContext";
 import Index from "./pages/index";
 import { AppNavbar } from "./components/navbar";
 import { AppSidebar } from "./components/sidebar";
@@ -10,6 +11,7 @@ import LogIn from "./pages/loginPage";
 export default function App() {
   return (
     <AuthProvider>
+      <ChatAuthProvider>
       <ThemeProvider>
         <BrowserRouter>
           <div className="min-h-screen">
@@ -27,6 +29,7 @@ export default function App() {
           </div>
         </BrowserRouter>
       </ThemeProvider>
+      </ChatAuthProvider>
     </AuthProvider>
   );
 }

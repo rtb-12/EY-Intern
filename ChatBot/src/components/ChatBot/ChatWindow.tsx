@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { X, Send, User } from "lucide-react";
-import { useAuth } from "../../context/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { useChatAuth } from "../../context/ChatAuthContext";
 import axios from "axios";
 
 
@@ -17,10 +16,55 @@ interface ChatWindowProps {
   onClose: () => void;
 }
 
-const ChatWindow = ({ isOpen, onClose }: ChatWindowProps) => {
-  const { isAuthenticated } = useAuth();
-  const navigate = useNavigate();
+interface ChatAuthState {
+  isLogin: boolean;
+  email: string;
+  password: string;
+  username?: string;
+}
 
+
+const ChatWindow = ({ isOpen, onClose }: ChatWindowProps) => {
+  const { isChatAuthenticated, chatLogin, chatSignup } = useChatAuth();
+  const [authState, setAuthState] = useState<ChatAuthState>({
+    isLogin: true,
+    email: '',
+    password: '',
+    username: ''
+  });
+
+  const handleAuthSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const endpoint = authState.isLogin ? '/chatbot/login' : '/chatbot/signup';
+      const payload = authState.isLogin ? {
+        username: authState.username,
+        password: authState.password
+      } : {
+        email: authState.email,
+        password: authState.password,
+        username: authState.username
+      };
+  
+      const response = await axios.post(`http://127.0.0.1:5000${endpoint}`, payload);
+      
+      if (authState.isLogin) {
+        chatLogin(response.data.token);
+      } else {
+        chatSignup(response.data.token);
+      }
+      
+      // Clear form
+      setAuthState({
+        isLogin: true,
+        email: '',
+        password: '',
+        username: ''
+      });
+    } catch (error) {
+      console.error('Auth error:', error);
+    }
+  };
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 1,
@@ -83,120 +127,145 @@ const ChatWindow = ({ isOpen, onClose }: ChatWindowProps) => {
     }
   };
 
-  if (!isAuthenticated) {
-    return (
-      <div className={`fixed bottom-6 right-6 w-96 bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-lg shadow-2xl p-6 flex flex-col items-center justify-center transition-all duration-300 ${
-        isOpen ? "scale-100 opacity-100" : "scale-0 opacity-0"
-      }`}>
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-muted-foreground hover:text-primary transition-colors"
-          aria-label="Close chat"
-        >
-          <X className="w-5 h-5" />
-        </button>
-        <h3 className="text-lg font-semibold mb-4">Please Login First</h3>
-        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 text-center">
-          To use the chat assistant, please login to your account
-        </p>
-        <button
-          onClick={() => navigate('/login')}
-          className="bg-primary text-primary-foreground px-4 py-2 rounded-md hover:opacity-90 transition-opacity"
-        >
-          Login
-        </button>
-      </div>
-    );
-  }
-
-
   return (
-    <div
-    className={`fixed bottom-6 right-6 w-96 h-[600px] bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-lg shadow-2xl flex flex-col transition-all duration-300 ${
+    <div className={`fixed bottom-6 right-6 w-96 h-[600px] bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-lg shadow-2xl flex flex-col transition-all duration-300 ${
       isOpen ? "scale-100 opacity-100" : "scale-0 opacity-0"
-    }`}
-    >
-      {/* Header */}
-      <div className="p-4 border-b border-border flex justify-between items-center">
-        <h2 className="text-lg font-semibold text-primary">Chat Assistant</h2>
-        <button
-          onClick={onClose}
-          className="text-muted-foreground hover:text-primary transition-colors"
-          aria-label="Close chat"
-        >
-          <X className="w-5 h-5" />
-        </button>
-      </div>
+    }`}>
+      {!isChatAuthenticated ? (
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className={`flex ${
-              message.sender === "user" ? "justify-end" : "justify-start"
-            }`}
-          >
-            <div
-              className={`message-bubble flex gap-2 ${
-                message.sender === "user"
-                  ? "bg-accent text-accent-foreground ml-12"
-                  : "bg-muted text-primary mr-12"
-              } p-3 rounded-lg`}
-            >
-              {message.sender === "bot" && (
-                <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
-                  <User className="w-4 h-4 text-primary-foreground" />
-                </div>
-              )}
-              <div className="flex flex-col">
-                <p className="text-sm">{message.text}</p>
-                <span className="text-xs text-muted-foreground mt-1">
-                  {message.timestamp.toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </span>
-              </div>
-            </div>
-          </div>
-        ))}
-        {isTyping && (
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center">
-              <User className="w-4 h-4 text-primary-foreground" />
-            </div>
-            <div className="bg-muted p-3 rounded-lg">
-              <div className="typing-indicator">
-                <div className="typing-dot"></div>
-                <div className="typing-dot"></div>
-                <div className="typing-dot"></div>
-              </div>
-            </div>
-          </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
+        <div className="p-6">
+          <button onClick={onClose} className="absolute top-4 right-4 text-muted-foreground hover:text-primary transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+          
+          <h3 className="text-lg font-semibold mb-4">
+            {authState.isLogin ? 'Chat Login' : 'Create Chat Account'}
+          </h3>
 
-      {/* Input */}
-      <form onSubmit={handleSubmit} className="p-4 border-t border-border">
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            placeholder="Type your message..."
-            className="flex-1 bg-muted text-primary p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-          />
+          <form onSubmit={handleAuthSubmit} className="w-full space-y-4">
+            {!authState.isLogin && (
+              <input
+              type="email"
+              placeholder="Email"
+              className="w-full p-2 border rounded dark:bg-gray-800 dark:border-gray-700"
+              value={authState.email}
+              onChange={(e) => setAuthState(prev => ({ ...prev, email: e.target.value }))}
+            />
+            )}
+            
+            
+            <input
+                type="text"
+                placeholder="Username"
+                className="w-full p-2 border rounded dark:bg-gray-800 dark:border-gray-700"
+                value={authState.username}
+                onChange={(e) => setAuthState(prev => ({ ...prev, username: e.target.value }))}
+              />
+            <input
+              type="password"
+              placeholder="Password"
+              className="w-full p-2 border rounded dark:bg-gray-800 dark:border-gray-700"
+              value={authState.password}
+              onChange={(e) => setAuthState(prev => ({ ...prev, password: e.target.value }))}
+            />
+            
+            <button type="submit" className="w-full bg-primary text-primary-foreground p-2 rounded hover:opacity-90">
+              {authState.isLogin ? 'Login' : 'Sign Up'}
+            </button>
+          </form>
+
           <button
-            type="submit"
-            className="bg-primary text-primary-foreground p-2 rounded-md hover:opacity-90 transition-opacity"
-            aria-label="Send message"
+            onClick={() => setAuthState(prev => ({ ...prev, isLogin: !prev.isLogin }))}
+            className="mt-4 text-sm text-primary hover:underline"
           >
-            <Send className="w-5 h-5" />
+            {authState.isLogin ? 'Create new account' : 'Already have an account?'}
           </button>
         </div>
-      </form>
+      ) : (
+        <>
+          {/* Header */}
+          <div className="p-4 border-b border-border flex justify-between items-center">
+            <h2 className="text-lg font-semibold text-primary">Chat Assistant</h2>
+            <button
+              onClick={onClose}
+              className="text-muted-foreground hover:text-primary transition-colors"
+              aria-label="Close chat"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {messages.map((message) => (
+              <div
+                key={message.id}
+                className={`flex ${
+                  message.sender === "user" ? "justify-end" : "justify-start"
+                }`}
+              >
+                <div
+                  className={`message-bubble flex gap-2 ${
+                    message.sender === "user"
+                      ? "bg-accent text-accent-foreground ml-12"
+                      : "bg-muted text-primary mr-12"
+                  } p-3 rounded-lg`}
+                >
+                  {message.sender === "bot" && (
+                    <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
+                      <User className="w-4 h-4 text-primary-foreground" />
+                    </div>
+                  )}
+                  <div className="flex flex-col">
+                    <p className="text-sm">{message.text}</p>
+                    <span className="text-xs text-muted-foreground mt-1">
+                      {message.timestamp.toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {isTyping && (
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center">
+                  <User className="w-4 h-4 text-primary-foreground" />
+                </div>
+                <div className="bg-muted p-3 rounded-lg">
+                  <div className="typing-indicator">
+                    <div className="typing-dot"></div>
+                    <div className="typing-dot"></div>
+                    <div className="typing-dot"></div>
+                  </div>
+                </div>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Input */}
+          <form onSubmit={handleSubmit} className="p-4 border-t border-border">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                placeholder="Type your message..."
+                className="flex-1 bg-muted text-primary p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+              <button
+                type="submit"
+                className="bg-primary text-primary-foreground p-2 rounded-md hover:opacity-90 transition-opacity"
+                aria-label="Send message"
+              >
+                <Send className="w-5 h-5" />
+              </button>
+            </div>
+          </form>
+        </>
+      )}
     </div>
   );
 };

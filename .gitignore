@@ -45,3 +45,8 @@ lerna-debug.log*
 
 # TypeScript
 *.tsbuildinfo
+
+DataScraping/node_modules/
+DataScraping/amazon_product_with_reviews.csv
+DataScraping/product_urls.txt
+DataScraping/amazonScrapper2 copy.js
