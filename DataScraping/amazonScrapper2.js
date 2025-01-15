@@ -273,7 +273,6 @@ async function scrapeAmazonProduct(page, url) {
             page.waitForNavigation({ waitUntil: "networkidle2" }),
           ]);
 
-          // Add delay between pages to avoid being blocked
           await delay(3000 + Math.random() * 2000);
           pageNumber++;
         } catch (error) {
@@ -288,7 +287,6 @@ async function scrapeAmazonProduct(page, url) {
 
      const csvFileName = "amazon_product_with_reviews.csv";
 
-     // Create header if file doesn't exist
      if (!fs.existsSync(csvFileName)) {
        fs.writeFileSync(csvFileName, "Product Title,Price,Rating,Total Reviews,All Reviews\n", "utf8");
      }
