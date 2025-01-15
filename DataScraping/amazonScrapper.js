@@ -123,7 +123,7 @@ async function scrapeAmazonProduct(
     
       if (brandFound) {
         console.log(`Successfully selected brand: ${brandName}`);
-        // Wait for page to update after brand selection
+        
         await page.waitForNavigation({ waitUntil: 'networkidle0' });
       } else {
         console.log(`Brand "${brandName}" not found in filters`);
@@ -157,7 +157,7 @@ try {
 
   const urls = products
   .map(product => product.url)
-  .filter(url => url) // Remove null/undefined URLs
+  .filter(url => url) 
   .join(',\n');
 
 fs.writeFileSync('product_urls.txt', urls, 'utf-8');

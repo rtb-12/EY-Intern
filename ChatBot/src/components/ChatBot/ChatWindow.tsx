@@ -54,7 +54,7 @@ const ChatWindow = ({ isOpen, onClose }: ChatWindowProps) => {
         chatSignup(response.data.token);
       }
       
-      // Clear form
+
       setAuthState({
         isLogin: true,
         email: '',

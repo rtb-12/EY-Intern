@@ -47,7 +47,7 @@ Question: {question}
 
 Answer:""")
 
-# Initialize the QA chain only once
+# Initialize the QA chain 
 qa_chain = None
 
 def initialize_qa_chain():

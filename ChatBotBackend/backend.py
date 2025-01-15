@@ -356,7 +356,7 @@ def simple_chat():
         data = request.get_json()
         prompt = data['prompt']
 
-        # Get LLM response using the default key
+       
         response = get_answer(prompt)
 
         return jsonify({

@@ -1,4 +1,3 @@
-"use client";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import React, { useState, createContext, useContext } from "react";
@@ -9,7 +8,7 @@ export interface Links {
   label: string;
   href: string;
   icon: React.ReactNode;
-  onClick?: () => void;  // Add onClick
+  onClick?: () => void;  
 }
 
 interface SidebarContextProps {

@@ -13,10 +13,8 @@ import {
 } from "@tabler/icons-react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { cn } from "@/lib/utils";
 import { useTheme } from '../context/themeContext';
 import { useAuth } from '../context/AuthContext';
-import axios from 'axios';
 
 
 export function AppSidebar() {
