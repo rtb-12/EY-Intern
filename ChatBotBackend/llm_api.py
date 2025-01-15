@@ -1,10 +1,15 @@
 from ollama import chat
 from typing import Optional
+from dotenv import load_dotenv
+import os
 
-def get_llm_response(prompt: str, model: str = 'llama3.2:1b') -> Optional[str]:
+load_dotenv()
+
+def get_llm_response(prompt: str, model: str = None) -> Optional[str]:
     print(f"Getting LLM response for prompt: {prompt}")
     try:
-        response = chat(model=model, messages=[{
+        model_name = model or os.getenv('LLM_MODEL')
+        response = chat(model=model_name, messages=[{
             'role': 'user',
             'content': prompt,
         }])
@@ -12,5 +17,3 @@ def get_llm_response(prompt: str, model: str = 'llama3.2:1b') -> Optional[str]:
     except Exception as e:
         print(f"Error getting LLM response: {str(e)}")
         return None
-    
-    

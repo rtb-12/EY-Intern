@@ -21,7 +21,7 @@ def create_review_db():
     
     reviews = load_reviews()
     review_chunks = text_splitter.split_text(reviews)
-    embeddings = OllamaEmbeddings(model="llama3.2:1b")
+    embeddings = OllamaEmbeddings(model=os.getenv('LLM_MODEL'))
     
     vectorstore = Chroma.from_texts(
         texts=review_chunks,
@@ -57,13 +57,13 @@ def initialize_qa_chain():
         if os.path.exists("./database/macbook_reviews_db"):
             vectorstore = Chroma(
                 persist_directory="./database/macbook_reviews_db",
-                embedding_function=OllamaEmbeddings(model="llama3.2:1b")
+                embedding_function=OllamaEmbeddings(model=os.getenv('LLM_MODEL'))
             )
         else:
             vectorstore = create_review_db()
         
         retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
-        llm = OllamaLLM(model="llama3.2:1b")
+        llm = OllamaLLM(model=os.getenv('LLM_MODEL'))
         
         qa_chain = (
             {

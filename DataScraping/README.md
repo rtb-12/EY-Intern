@@ -35,13 +35,14 @@ AMAZON_PASSWORD=your_amazon_password
 npm install
 ```
 
-3. Run URL scraper:
-```bash
-node amazonScrapper.js
+### Product Selection Configuration
+
+You can customize which products to scrape by modifying these variables in `amazonScraper.js`:
+
+```javascript
+const productType = "laptops";  // e.g. laptops, phones, tablets
+const brandName = "Apple";      // e.g. Apple, Samsung, Dell
 ```
-
-This will create `product_urls.txt` with Amazon MacBook URLs.
-
 ### Step 2: Extract Reviews
 Using amazonScrapper2.js to get reviews:
 
