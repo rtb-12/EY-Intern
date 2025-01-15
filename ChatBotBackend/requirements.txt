@@ -1,0 +1,13 @@
+flask
+flask-cors
+python-dotenv
+psycopg2
+werkzeug
+PyJWT
+transformers
+langchain
+chromadb
+sentence-transformers
+ollama
+langchain-chroma
+langchain-ollama
